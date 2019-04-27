@@ -1,0 +1,207 @@
+#!/usr/bin/python3
+# -*- coding: UTF-8 -*-
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+#---------------------------------
+# By: DeaDSouL (Mubarak Alrashidi)
+#---------------------------------
+
+import os, argparse, pprint
+from PIL import Image
+from stat import S_ISSOCK
+from sys import exit
+
+#from tempfile import mkdtemp, gettempdir
+#from shutil import rmtree, copytree, move
+#from distutils.dir_util import copy_tree
+
+class findImageByResolution:
+    # ----------------------------------------------------------------------
+    args            = ''
+    currentDir      = ''
+    targetDir       = ''
+    foundImages     = []
+    matchedImages   = {}
+    extensions      = ['jpg', 'jpeg', 'png', 'gif', 'bmp']
+    width           = 256
+    height          = 256
+    widthRule       = '-'
+    heightRule      = '-'
+    totalImages     = 0
+    totalMatched    = 0
+    tmpFlash        = {}
+    waitSymbols     = (' \\', ' |', ' /', '---')
+    # ----------------------------------------------------------------------
+    def initParser(self):
+        parser = argparse.ArgumentParser(prog='FindImageByResolution', description='Find images by their resolutions.')
+
+        parser.add_argument('width', type=str, action='store', default='-256', help='The images width. (should start with "+", "-" or "=").')
+        parser.add_argument('height', type=str, action='store', default='-256', help='The images height. (should start with "+", "-" or "=").')
+        parser.add_argument('targetDir', type=str, action='store', default=os.getcwd(), help='The path of the directory to scan.')
+
+        group = parser.add_mutually_exclusive_group()
+        group.add_argument('-p', '--print_results', action='store_true', default=False, help='will print all the matched images. Please note that, this argument is meant to only work with argument "scan"; So if it is being called with argument "precopy", it will first execute the "precopy" to "dir1", then will execute the same selected optional arguments with "scan" to the produced directory "_UniqueFiles_".')
+
+        subparsers = parser.add_subparsers(help='Main Commands', dest='cmd')
+        parser_export = subparsers.add_parser('export', help='Exporting results to a JSON file.')
+        parser_export.add_argument('jsonFilename', type=str, action='store', default='output.json', help='The filename we should store the results into.')
+
+        parser_mklinks = subparsers.add_parser('mklinks', help='Generating a symlinks to all results.')
+        parser_mklinks.add_argument('linksPath', type=str, action='store', help='Where to save the generated symLinks.')
+
+        parser_isolation = subparsers.add_parser('isolate', help='Isolate all images. (Move them into the given directory).')
+        parser_isolation.add_argument('isolationPath', type=str, action='store', help='Where to move images.')
+
+        parser_print = subparsers.add_parser('print', help='Print the results.')
+
+        self.args = parser.parse_args()
+    # ----------------------------------------------------------------------
+    def main(self):
+        self.initParser()
+        self.setDirs()
+        self.readRules()
+        self.findImages()
+        self.scanImages()
+        self.initCmd( self.args.cmd )
+    # ----------------------------------------------------------------------
+    def initCmd(self, cmd=None):
+        if cmd == 'export':
+            #self.args.jsonFilename
+            pass
+        elif cmd == 'mklinks':
+            #self.args.linksPath
+            pass
+        elif cmd == 'isolate':
+            #self.args.isolationPath
+            pass
+        elif cmd == 'print':
+            self.printResults()
+        else:
+            self.printStatistics()
+    # ----------------------------------------------------------------------
+    def readRules(self):
+        if self.args.width[0] not in ('+','-','='):
+            self.exit('Invalid width rule')
+        if self.args.height[0] not in ('+','-','='):
+            self.exit('Invalid height rule')
+        self.widthRule  = self.args.width[0]
+        self.width      = int(self.args.width[1:])
+        self.heightRule = self.args.height[0]
+        self.height     = int(self.args.height[1:])
+    # ----------------------------------------------------------------------
+    def setDirs(self):
+        if not self.isExistedDir( self.args.targetDir ):
+            self.exit('Invalid DIR: %s' % self.args.targetDir)
+        self.targetDir = os.path.abspath( self.args.targetDir )
+        self.currentDir = os.path.abspath( os.getcwd() )
+    # ----------------------------------------------------------------------
+    def isExistedDir(self, chkDir=None):
+        if os.path.exists(chkDir) and os.path.isdir(chkDir) and os.access(chkDir, os.R_OK):
+            return True
+        else:
+            return False
+    # ----------------------------------------------------------------------
+    def exit(self, msg='Exiting,..', status=1):
+        print(msg)
+        exit(status)
+    # ----------------------------------------------------------------------
+    def findImages(self):
+        i = 0
+        for path, _, filenames in os.walk(self.targetDir):
+            for filename in filenames:
+                if i >= len(self.waitSymbols): i = 0
+                print('\rFinding Images..(%d) %s ' % (self.totalImages,self.waitSymbols[i]), end='', flush=True),
+                i += 1
+                filenamePath = os.path.join(path, filename)
+                if self.isImage(filenamePath):
+                    self.foundImages.append(filenamePath)
+                    self.totalImages += 1
+        print('\rFinding Images..........Done ')
+    # ----------------------------------------------------------------------
+    def isImage(self, image=None):
+        if os.path.islink(image):
+            if self.targetDir not in os.path.realpath(image):
+                return False
+        if os.path.exists(image) and os.access(image, os.R_OK) and not S_ISSOCK(os.stat(image).st_mode):
+            ext = os.path.splitext(image)[1][1:].strip().lower()
+            if ext in set(self.extensions):
+                if os.path.islink(image):
+                    if self.targetDir not in os.path.realpath(image):
+                        print('Ignoring Link: %s' % image)
+                        return False
+                if not os.path.exists(image):
+                    #print('Ignoring Inexistent:: %s' % image)
+                    return False
+                elif not os.access(image, os.R_OK):
+                    #print('Ignoring Unreadable:: %s' % image)
+                    return False
+                elif S_ISSOCK(os.stat(image).st_mode):
+                    #print('Ignoring Socket:: %s' % image)
+                    return False
+                elif os.path.isdir(image):
+                    #print('Ignoring Directory:: %s' % image)
+                    return False
+                elif os.path.isfile(image):
+                    return True
+                else:
+                    #print('Unknown %s:' % image)
+                    return False
+    # ----------------------------------------------------------------------
+    def scanImages(self, cPath=None):
+        counter = 0
+        for img in self.foundImages:
+            counter += 1
+            print('\rScanning Images: (%d/%d) - %d%% : "%s...%s"' % (counter, self.totalImages, (counter*100/self.totalImages), img[:14], img[-22:]), end='', flush=True),
+            width,height = self.getResolution(img)
+            if self.isMatched(img, width, height):
+                self.matchedImages[img] = (width, height)
+                self.totalMatched += 1
+        spaces=' '*56
+        print('\rScanning Images.........Done %s' % spaces)
+    # ----------------------------------------------------------------------
+    def getResolution(self, img=None):
+        try:
+            imgInfo = Image.open(img)
+            return imgInfo.size
+        except:
+            pass
+        return (False, False)
+    # ----------------------------------------------------------------------
+    def isMatched(self, img=None, width=False, height=False):
+        if width and height:
+            if self.widthRule == '+':
+                if self.heightRule == '+' and width >= self.width and height >= self.height:
+                    return True
+                elif self.heightRule == '-' and width >= self.width and height <= self.height:
+                    return True
+                elif self.heightRule == '=' and width >= self.width and height == self.height:
+                    return True
+            elif self.widthRule == '-':
+                if self.heightRule == '+' and width <= self.width and height >= self.height:
+                    return True
+                elif self.heightRule == '-' and width <= self.width and height <= self.height:
+                    return True
+                elif self.heightRule == '=' and width <= self.width and height == self.height:
+                    return True
+            elif self.widthRule == '=':
+                if self.heightRule == '+' and width == self.width and height >= self.height:
+                    return True
+                elif self.heightRule == '-' and width == self.width and height <= self.height:
+                    return True
+                elif self.heightRule == '=' and width == self.width and height == self.height:
+                    return True
+        return False
+    # ----------------------------------------------------------------------
+    def printResults(self):
+        pprint.pprint(self.matchedImages, width=160)
+    # ----------------------------------------------------------------------
+    def printStatistics(self):
+        print('  Total images: %s' % self.totalImages)
+        print('Matched images: %s' % self.totalMatched)
+    # ----------------------------------------------------------------------
+
+# ----------------------------------------------------------------------
+if __name__ == '__main__':
+    try:
+        findImageByResolution().main()
+    except KeyboardInterrupt as e:
+        pass
