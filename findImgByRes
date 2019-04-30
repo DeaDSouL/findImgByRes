@@ -9,6 +9,7 @@ import os, argparse, pprint
 from PIL import Image
 from stat import S_ISSOCK
 from sys import exit
+from shutil import move
 
 #from tempfile import mkdtemp, gettempdir
 #from shutil import rmtree, copytree, move
@@ -19,6 +20,9 @@ class findImageByResolution:
     args            = ''
     currentDir      = ''
     targetDir       = ''
+    isolationDir    = ''
+    symLinksDir     = ''
+    jsonOutputFile  = ''
     foundImages     = []
     matchedImages   = {}
     extensions      = ['jpg', 'jpeg', 'png', 'gif', 'bmp']
@@ -26,10 +30,11 @@ class findImageByResolution:
     height          = 256
     widthRule       = '-'
     heightRule      = '-'
+    totalFiles      = 0
     totalImages     = 0
     totalMatched    = 0
     tmpFlash        = {}
-    waitSymbols     = (' \\', ' |', ' /', '---')
+    waitSymbols     = (' \\ ', ' | ', ' / ', '---')
     # ----------------------------------------------------------------------
     def initParser(self):
         parser = argparse.ArgumentParser(prog='FindImageByResolution', description='Find images by their resolutions.')
@@ -65,18 +70,31 @@ class findImageByResolution:
     # ----------------------------------------------------------------------
     def initCmd(self, cmd=None):
         if cmd == 'export':
-            #self.args.jsonFilename
             pass
         elif cmd == 'mklinks':
-            #self.args.linksPath
             pass
         elif cmd == 'isolate':
-            #self.args.isolationPath
-            pass
+            self.cmdIsolate()
         elif cmd == 'print':
             self.printResults()
         else:
             self.printStatistics()
+    # ----------------------------------------------------------------------
+    def cmdIsolate(self):
+        for image in self.matchedImages.keys():
+            fullBasename = os.path.basename(image)
+            fileBasename = os.path.basename(os.path.splitext(image)[0].strip().lower())
+            ext = os.path.splitext(image)[1][1:].strip().lower()
+            tries = 0
+            dstImage = '%s/%s' % (self.isolationDir,fullBasename)
+            while os.path.exists(dstImage):
+                tries += 1
+                dstImage = '%s/%s_%d.%s' % (self.isolationDir, fileBasename, tries, ext)
+                print('"%s" Already exists. Renaming it to "%s"' % (fullBasename, os.path.basename(dstImage)))
+            try:
+                move(image, dstImage)
+            except:
+                pass
     # ----------------------------------------------------------------------
     def readRules(self):
         if self.args.width[0] not in ('+','-','='):
@@ -89,10 +107,27 @@ class findImageByResolution:
         self.height     = int(self.args.height[1:])
     # ----------------------------------------------------------------------
     def setDirs(self):
+        self.currentDir = os.path.abspath( os.getcwd() )
         if not self.isExistedDir( self.args.targetDir ):
             self.exit('Invalid DIR: %s' % self.args.targetDir)
-        self.targetDir = os.path.abspath( self.args.targetDir )
-        self.currentDir = os.path.abspath( os.getcwd() )
+        else:
+            self.targetDir = os.path.abspath( self.args.targetDir )
+
+        if self.args.cmd == 'isolate':
+            if not self.isExistedDir( self.args.isolationPath ):
+                self.exit('Invalid DIR: %s' % self.args.isolationPath)
+            else:
+                self.isolationDir = os.path.abspath( self.args.isolationPath )
+        elif self.args.cmd == 'mklinks':
+            if not self.isExistedDir( self.args.linksPath ):
+                self.exit('Invalid DIR: %s' % self.args.linksPath)
+            else:
+                self.symLinksDir = os.path.abspath( self.args.linksPath )
+        elif self.args.cmd == 'export':
+            if not self.isFile( self.args.jsonFilename ):
+                self.exit('Invalid jsonFile' % self.args.jsonFilename )
+            else:
+                self.jsonOutputFile = os.path.abspath( self.args.jsonFilename )
     # ----------------------------------------------------------------------
     def isExistedDir(self, chkDir=None):
         if os.path.exists(chkDir) and os.path.isdir(chkDir) and os.access(chkDir, os.R_OK):
@@ -108,6 +143,7 @@ class findImageByResolution:
         i = 0
         for path, _, filenames in os.walk(self.targetDir):
             for filename in filenames:
+                self.totalFiles += 1
                 if i >= len(self.waitSymbols): i = 0
                 print('\rFinding Images..(%d) %s ' % (self.totalImages,self.waitSymbols[i]), end='', flush=True),
                 i += 1
@@ -120,31 +156,48 @@ class findImageByResolution:
     def isImage(self, image=None):
         if os.path.islink(image):
             if self.targetDir not in os.path.realpath(image):
+                #print('Ignoring Link: %s' % image)
                 return False
-        if os.path.exists(image) and os.access(image, os.R_OK) and not S_ISSOCK(os.stat(image).st_mode):
-            ext = os.path.splitext(image)[1][1:].strip().lower()
-            if ext in set(self.extensions):
-                if os.path.islink(image):
-                    if self.targetDir not in os.path.realpath(image):
-                        print('Ignoring Link: %s' % image)
-                        return False
-                if not os.path.exists(image):
-                    #print('Ignoring Inexistent:: %s' % image)
-                    return False
-                elif not os.access(image, os.R_OK):
-                    #print('Ignoring Unreadable:: %s' % image)
-                    return False
-                elif S_ISSOCK(os.stat(image).st_mode):
-                    #print('Ignoring Socket:: %s' % image)
-                    return False
-                elif os.path.isdir(image):
-                    #print('Ignoring Directory:: %s' % image)
-                    return False
-                elif os.path.isfile(image):
-                    return True
-                else:
-                    #print('Unknown %s:' % image)
-                    return False
+        ext = os.path.splitext(image)[1][1:].strip().lower()
+        if ext not in set(self.extensions):
+            #print('Ignoring Not-Image: %s' % image)
+            return False
+        if not os.path.exists(image):
+            #print('Ignoring Inexistent: %s' % image)
+            return False
+        elif not os.access(image, os.R_OK):
+            #print('Ignoring Unreadable: %s' % image)
+            return False
+        elif S_ISSOCK(os.stat(image).st_mode):
+            #print('Ignoring Socket: %s' % image)
+            return False
+        elif os.path.isdir(image):
+            #print('Ignoring Directory: %s' % image)
+            return False
+        elif os.path.isfile(image):
+            return True
+        else:
+            #print('Unknown %s:' % image)
+            return False
+    # ----------------------------------------------------------------------
+    def isFile(self, file=None):
+        if not os.path.exists(file):
+            #print('Ignoring Inexistent: %s' % file)
+            return False
+        elif not os.access(file, os.R_OK):
+            #print('Ignoring Unreadable: %s' % file)
+            return False
+        elif S_ISSOCK(os.stat(file).st_mode):
+            #print('Ignoring Socket: %s' % file)
+            return False
+        elif os.path.isdir(file):
+            #print('Ignoring Directory: %s' % file)
+            return False
+        elif os.path.isfile(file):
+            return True
+        else:
+            #print('Unknown %s:' % file)
+            return False
     # ----------------------------------------------------------------------
     def scanImages(self, cPath=None):
         counter = 0
@@ -195,6 +248,7 @@ class findImageByResolution:
         pprint.pprint(self.matchedImages, width=160)
     # ----------------------------------------------------------------------
     def printStatistics(self):
+        print('   Total files: %s' % self.totalFiles)
         print('  Total images: %s' % self.totalImages)
         print('Matched images: %s' % self.totalMatched)
     # ----------------------------------------------------------------------
