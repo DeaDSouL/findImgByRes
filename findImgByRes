@@ -88,9 +88,10 @@ class findImageByResolution:
             tries = 0
             dstImage = '%s/%s' % (self.isolationDir,fullBasename)
             while os.path.exists(dstImage):
+                oldDstImage = dstImage[:]
                 tries += 1
                 dstImage = '%s/%s_%d.%s' % (self.isolationDir, fileBasename, tries, ext)
-                print('"%s" Already exists. Renaming it to "%s"' % (fullBasename, os.path.basename(dstImage)))
+                print('"%s" Already exists. Renaming it to "%s"' % (os.path.basename(oldDstImage), os.path.basename(dstImage)))
             try:
                 move(image, dstImage)
             except:
