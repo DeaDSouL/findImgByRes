@@ -93,7 +93,7 @@ class findImageByResolution:
     def cmdMkLinks(self):
         links = 0
         for image in self.matchedImages.keys():
-            dstImage = self.genDstName(image, self.isolationDir)
+            dstImage = self.genDstName(image, self.symLinksDir, True)
             if dstImage:
                 try:
                     os.symlink(image, dstImage)
@@ -102,17 +102,19 @@ class findImageByResolution:
                     pass
         self.tmpFlash['statisticsMsg'] = ' Linked images: %s' % links
     # ----------------------------------------------------------------------
-    def genDstName(self, image=None, dstDir=None):
+    def genDstName(self, image=None, dstDir=None, chkLinks=False):
         if image == None or dstDir == None: return False
         fullBasename = os.path.basename(image)
         fileBasename = os.path.basename(os.path.splitext(image)[0].strip().lower())
         ext = os.path.splitext(image)[1][1:].strip().lower()
-        dstImage = '%s/%s' % (dstDir,fullBasename)
+        dstImage = os.path.join(dstDir,fullBasename)
         tries = 0
         while os.path.exists(dstImage):
+            if chkLinks and os.path.islink(dstImage) and os.readlink(dstImage) == image:
+                return False
             oldDstImage = dstImage[:]
             tries += 1
-            dstImage = '%s/%s_%d.%s' % (dstDir, fileBasename, tries, ext)
+            dstImage = os.path.join(dstDir, '%s_%d.%s' % (fileBasename, tries, ext))
             #print('"%s" Already exists. Renaming it to "%s"' % (os.path.basename(oldDstImage), os.path.basename(dstImage)))
         return dstImage
     # ----------------------------------------------------------------------
