@@ -76,6 +76,8 @@ class findImageByResolution:
         else: self.printStatistics()
     # ----------------------------------------------------------------------
     def cmdIsolate(self):
+        if len(self.matchedImages) == 0:
+            self.exit('No matched images were found.', 0)
         for image in self.matchedImages.keys():
             dstImage = self.genDstName(image, self.isolationDir)
             if dstImage:
