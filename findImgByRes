@@ -33,7 +33,7 @@ class findImageByResolution:
     totalFiles      = 0
     totalImages     = 0
     totalMatched    = 0
-    tmpFlash        = {}
+    tmpFlash        = {'statisticsMsg':''}
     waitSymbols     = (' \\ ', ' | ', ' / ', '---')
     # ----------------------------------------------------------------------
     def initParser(self):
@@ -67,24 +67,28 @@ class findImageByResolution:
         self.findImages()
         self.scanImages()
         self.initCmd( self.args.cmd )
+        self.printStatistics()
     # ----------------------------------------------------------------------
     def initCmd(self, cmd=None):
-        if cmd == 'export':     self.cmdExport()
-        elif cmd == 'mklinks':  self.cmdMkLinks()
-        elif cmd == 'isolate':  self.cmdIsolate()
-        elif cmd == 'print':    self.printResults()
-        else: self.printStatistics()
+        if len(self.matchedImages) > 0:
+            if cmd == 'export':     self.cmdExport()
+            elif cmd == 'mklinks':  self.cmdMkLinks()
+            elif cmd == 'isolate':  self.cmdIsolate()
+            elif cmd == 'print':    self.printResults()
+        else:
+            self.exit('No matched images were found.', 0)
     # ----------------------------------------------------------------------
     def cmdIsolate(self):
-        if len(self.matchedImages) == 0:
-            self.exit('No matched images were found.', 0)
+        moved = 0
         for image in self.matchedImages.keys():
             dstImage = self.genDstName(image, self.isolationDir)
             if dstImage:
                 try:
                     move(image, dstImage)
+                    moved += 1
                 except:
                     pass
+        self.tmpFlash['statisticsMsg'] = '  Moved images: %s' % moved
     # ----------------------------------------------------------------------
     def genDstName(self, image=None, dstDir=None):
         if image == None or dstDir == None: return False
@@ -97,7 +101,7 @@ class findImageByResolution:
             oldDstImage = dstImage[:]
             tries += 1
             dstImage = '%s/%s_%d.%s' % (dstDir, fileBasename, tries, ext)
-            print('"%s" Already exists. Renaming it to "%s"' % (os.path.basename(oldDstImage), os.path.basename(dstImage)))
+            #print('"%s" Already exists. Renaming it to "%s"' % (os.path.basename(oldDstImage), os.path.basename(dstImage)))
         return dstImage
     # ----------------------------------------------------------------------
     def readRules(self):
@@ -255,6 +259,7 @@ class findImageByResolution:
         print('   Total files: %s' % self.totalFiles)
         print('  Total images: %s' % self.totalImages)
         print('Matched images: %s' % self.totalMatched)
+        print(self.tmpFlash['statisticsMsg'])
     # ----------------------------------------------------------------------
 
 # ----------------------------------------------------------------------
