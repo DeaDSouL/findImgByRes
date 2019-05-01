@@ -69,16 +69,11 @@ class findImageByResolution:
         self.initCmd( self.args.cmd )
     # ----------------------------------------------------------------------
     def initCmd(self, cmd=None):
-        if cmd == 'export':
-            pass
-        elif cmd == 'mklinks':
-            pass
-        elif cmd == 'isolate':
-            self.cmdIsolate()
-        elif cmd == 'print':
-            self.printResults()
-        else:
-            self.printStatistics()
+        if cmd == 'export':     self.cmdExport()
+        elif cmd == 'mklinks':  self.cmdMkLinks()
+        elif cmd == 'isolate':  self.cmdIsolate()
+        elif cmd == 'print':    self.printResults()
+        else: self.printStatistics()
     # ----------------------------------------------------------------------
     def cmdIsolate(self):
         for image in self.matchedImages.keys():
