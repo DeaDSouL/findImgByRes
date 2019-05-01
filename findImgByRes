@@ -10,10 +10,7 @@ from PIL import Image
 from stat import S_ISSOCK
 from sys import exit
 from shutil import move
-
-#from tempfile import mkdtemp, gettempdir
-#from shutil import rmtree, copytree, move
-#from distutils.dir_util import copy_tree
+from json import dump as json_dump
 
 class findImageByResolution:
     # ----------------------------------------------------------------------
@@ -102,6 +99,18 @@ class findImageByResolution:
                     pass
         self.tmpFlash['statisticsMsg'] = ' Linked images: %s' % links
     # ----------------------------------------------------------------------
+    def cmdExport(self):
+        i = 0
+        name, ext = os.path.splitext(self.jsonOutputFile)
+        while os.path.exists(self.jsonOutputFile):
+            i += 1
+            self.jsonOutputFile = '%s_%d%s' % (name, i, ext)
+        ret = {}
+        for image in self.matchedImages.keys():
+            ret[image] = {'width':self.matchedImages[image][0], 'height':self.matchedImages[image][1]}
+        with open(self.jsonOutputFile, 'w') as outputFile:
+            json_dump(ret, outputFile)
+    # ----------------------------------------------------------------------
     def genDstName(self, image=None, dstDir=None, chkLinks=False):
         if image == None or dstDir == None: return False
         fullBasename = os.path.basename(image)
@@ -146,10 +155,11 @@ class findImageByResolution:
             else:
                 self.symLinksDir = os.path.abspath( self.args.linksPath )
         elif self.args.cmd == 'export':
-            if not self.isFile( self.args.jsonFilename ):
-                self.exit('Invalid jsonFile' % self.args.jsonFilename )
-            else:
-                self.jsonOutputFile = os.path.abspath( self.args.jsonFilename )
+            self.jsonOutputFile = os.path.abspath( self.args.jsonFilename )
+            #if not self.isFile( self.args.jsonFilename ):
+            #    self.exit('Invalid jsonFile' % self.args.jsonFilename )
+            #else:
+            #    self.jsonOutputFile = os.path.abspath( self.args.jsonFilename )
     # ----------------------------------------------------------------------
     def isExistedDir(self, chkDir=None):
         if os.path.exists(chkDir) and os.path.isdir(chkDir) and os.access(chkDir, os.R_OK):
