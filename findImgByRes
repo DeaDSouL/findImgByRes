@@ -90,6 +90,18 @@ class findImageByResolution:
                     pass
         self.tmpFlash['statisticsMsg'] = '  Moved images: %s' % moved
     # ----------------------------------------------------------------------
+    def cmdMkLinks(self):
+        links = 0
+        for image in self.matchedImages.keys():
+            dstImage = self.genDstName(image, self.isolationDir)
+            if dstImage:
+                try:
+                    os.symlink(image, dstImage)
+                    links += 1
+                except:
+                    pass
+        self.tmpFlash['statisticsMsg'] = ' Linked images: %s' % links
+    # ----------------------------------------------------------------------
     def genDstName(self, image=None, dstDir=None):
         if image == None or dstDir == None: return False
         fullBasename = os.path.basename(image)
